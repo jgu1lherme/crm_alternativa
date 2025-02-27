@@ -1,7 +1,4 @@
 [theme]
-base="dark"
-
-[theme]
 primaryColor="#000000"
 backgroundColor="#d6d8d9"
 secondaryBackgroundColor="#e0e2e6"
