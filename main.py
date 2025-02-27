@@ -10,7 +10,7 @@ st.set_page_config(
 
 # Barra lateral para navegação
 menu = st.sidebar.radio(
-    "Selecione uma opção:", ["CRM de Clientes", "Consultor de Meta de CNPJ"]
+    "Selecione uma opção:", ["CRM de Clientes", "Positivação de CNPJ"]
 )
 
 # Função para carregar arquivos por abas
