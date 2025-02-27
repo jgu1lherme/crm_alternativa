@@ -90,7 +90,7 @@ if menu == "CRM de Clientes":
                     "TOTAL_TRIMESTRAL": "R$ {:,.2f}".format,
                 }
             ),
-            use_container_width=True,
+            # use_container_width=True,
         )
 
         ativos = clientes[clientes["SITUAÇÃO"] == "🟢 Ativo"].shape[0]
@@ -101,7 +101,8 @@ if menu == "CRM de Clientes":
             names=["Ativos", "Inativos"],
             title="Distribuição de Clientes",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig)
+        # use_container_width=True
 
         st.success(f"✅ Clientes Ativos: {ativos}")
         st.error(f"❌ Clientes Inativos: {inativos}")
@@ -152,6 +153,7 @@ elif menu == "Consultor de Meta de CNPJ":
                 color_discrete_sequence=["gray", "#fc630b"],
                 title="Progresso da Meta",
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig)
+            # use_container_width=True
     else:
         st.warning("⚠️ Por favor, envie um arquivo Excel para visualizar os dados.")
