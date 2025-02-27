@@ -13,26 +13,6 @@ menu = st.sidebar.radio(
     "Selecione uma opção:", ["CRM de Clientes", "Consultor de Meta de CNPJ"]
 )
 
-# Aplicação de estilo para fundo da página
-st.markdown(
-    """
-    <style>
-    .stApp {
-        background-color: #0e1117;
-    }
-    h1, h2, h3, p, label {
-        color: white;
-    }
-    .stDataFrame {
-        background-color: #1c2025;
-        border-radius: 10px;
-        padding: 10px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
 # Função para carregar arquivos por abas
 if "uploaded_file_crm" not in st.session_state:
     st.session_state.uploaded_file_crm = None
