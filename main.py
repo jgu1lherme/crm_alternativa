@@ -89,8 +89,8 @@ if menu == "CRM de Clientes":
     else:
         st.warning("⚠️ Por favor, envie um arquivo Excel para visualizar os dados.")
 
-elif menu == "Consultor de Meta de CNPJ":
-    st.title("📈 Consultor de Meta de CNPJ")
+elif menu == "Positivação de CNPJ":
+    st.title("📈 Positivação de CNPJ")
     uploaded_file = st.file_uploader(
         "📂 Envie a planilha Excel contendo CNPJs", type=["xlsx", "xls"], key="cnpj"
     )
