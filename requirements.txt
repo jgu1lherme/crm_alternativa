@@ -4,3 +4,4 @@ plotly
 openpyxl
 PyPDF2
 PyMuPDF
+pdf2image
