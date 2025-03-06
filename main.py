@@ -271,7 +271,7 @@ elif menu == "Conversor de Arquivos":
 
     # Opção de envio de arquivo
     uploaded_file = st.file_uploader(
-        "📂 Selecione um arquivo para conversão", type=["png", "jpg", "jpeg", "pdf"]
+        "📂 Selecione um arquivo para conversão", type=["png", "jpg", "jpeg"]
     )
 
     # Verificar se o usuário enviou um arquivo
@@ -326,4 +326,4 @@ elif menu == "Conversor de Arquivos":
                 except Exception as e:
                     st.error(f"⚠️ Erro ao converter imagem: {e}")
         else:
-            st.warning("⚠️ Por favor, envie um arquivo válido (Imagem ou PDF).")
+            st.warning("⚠️ Por favor, envie um arquivo válido (Imagem).")
