@@ -9,6 +9,7 @@ from io import BytesIO
 
 import fitz  # PyMuPDF
 import pandas as pd
+import pdf2image
 import plotly.express as px
 import PyPDF2
 import streamlit as st
@@ -179,7 +180,7 @@ elif menu == "CRM de Clientes":
             df.groupby("CLI_RAZ")
             .agg(
                 ULTIMA_COMPRA=("NFS_EMISSAO", "max"),
-                TOTAL_TRIMESTRAL=( 
+                TOTAL_TRIMESTRAL=(
                     "NFS_CUSTO",
                     lambda x: x[df["NFS_EMISSAO"] >= tres_meses_atras].sum(),
                 ),
@@ -265,13 +266,13 @@ elif menu == "Positivação de CNPJ":
     else:
         st.warning("⚠️ Por favor, envie um arquivo Excel para visualizar os dados.")
 
-# 🟢 MENU "CONVERSOR DE ARQUIVOS"
+# 🟢 MENU "CONVERSOR DE IMAGENS"
 elif menu == "Conversor de Arquivos":
     st.title("🖼️ Conversor de Arquivos")
 
     # Opção de envio de arquivo
     uploaded_file = st.file_uploader(
-        "📂 Selecione um arquivo para conversão", type=["png", "jpg", "jpeg"]
+        "📂 Selecione um arquivo para conversão", type=["png", "jpg", "jpeg", "pdf"]
     )
 
     # Verificar se o usuário enviou um arquivo
@@ -279,51 +280,82 @@ elif menu == "Conversor de Arquivos":
         # Identificar o tipo de arquivo
         file_extension = uploaded_file.name.split(".")[-1].lower()
 
+        # 🟢 CONVERSÃO PARA IMAGENS (SE FOR UM PDF)
+        if file_extension == "pdf":
+            st.subheader("Conversão de PDF para Imagens")
+
+            if st.button("Converter PDF para Imagens"):
+                try:
+                    # Converter o PDF para imagens
+                    images = pdf2image.convert_from_bytes(uploaded_file.read())
+
+                    st.success("✅ PDF convertido para imagens com sucesso!")
+
+                    # Disponibilizar cada página do PDF como imagem para download
+                    for i, image in enumerate(images):
+                        image_io = io.BytesIO()
+                        image.save(image_io, "PNG")
+                        image_io.seek(0)
+                        st.download_button(
+                            label=f"📥 Baixar Página {i + 1} (Imagem)",
+                            data=image_io,
+                            file_name=f"pagina_{i + 1}.png",
+                            mime="image/png",
+                        )
+                except Exception as e:
+                    st.error(f"⚠️ Erro ao converter PDF para imagens: {e}")
+
         # 🟢 CONVERSÃO DE IMAGEM PARA VÁRIOS FORMATOS E PDF (SE FOR UMA IMAGEM)
-        if file_extension in ["png", "jpg", "jpeg"]:
+        elif file_extension in ["png", "jpg", "jpeg"]:
             st.subheader("Conversão de Imagem")
 
-            # Seleção de formatos de conversão
+            # Seleção de formatos de conversão, incluindo "JPEG" e "JPG"
             formato_destino = st.selectbox(
-                "Escolha o formato para conversão:", ["JPEG", "PNG", "JPG", "PDF"]
+                "Escolha o formato para conversão:", ["JPEG", "JPG", "PNG", "PDF"]
             )
 
             if st.button("Converter Imagem"):
                 try:
                     # Carregar a imagem
                     img = Image.open(uploaded_file)
+
+                    # Criar buffer para armazenar a nova imagem
                     img_io = io.BytesIO()
 
-                    if formato_destino == "PDF":
-                        # Converter para PDF
-                        img = img.convert(
-                            "RGB"
-                        )  # Necessário para salvar PNG/JPEG em PDF
-                        img.save(img_io, "PDF")
-                        st.success("✅ Imagem convertida para PDF com sucesso!")
-                    else:
-                        # Converter para o formato selecionado
-                        img.save(img_io, formato_destino.upper())
-                        st.success(
-                            f"✅ Imagem convertida para {formato_destino.upper()} com sucesso!"
+                    if formato_destino in ["JPEG", "JPG"]:
+                        # Converter para RGB antes de salvar como JPG ou JPEG
+                        img = img.convert("RGB")
+                        img.save(img_io, "JPEG", quality=95)
+                        mime_type = "image/jpeg"
+                        file_extension = (
+                            "jpg"  # Nome do arquivo será com extensão ".jpg"
                         )
+                    elif formato_destino == "PNG":
+                        img.save(img_io, "PNG")
+                        mime_type = "image/png"
+                        file_extension = "png"
+                    elif formato_destino == "PDF":
+                        img = img.convert("RGB")
+                        img.save(img_io, "PDF")
+                        mime_type = "application/pdf"
+                        file_extension = "pdf"
 
                     # Redefinir o ponteiro para o início
                     img_io.seek(0)
+
+                    st.success(
+                        f"✅ Imagem convertida para {formato_destino.upper()} com sucesso!"
+                    )
 
                     # Botão para download
                     st.download_button(
                         label=f"📥 Baixar {formato_destino.upper()}",
                         data=img_io,
-                        file_name=f"{uploaded_file.name.split('.')[0]}_convertido.{formato_destino.lower()}",
-                        mime=( 
-                            f"image/{formato_destino.lower()}"
-                            if formato_destino != "PDF"
-                            else "application/pdf"
-                        ),
+                        file_name=f"{uploaded_file.name.split('.')[0]}_convertido.{file_extension}",
+                        mime=mime_type,
                     )
 
                 except Exception as e:
                     st.error(f"⚠️ Erro ao converter imagem: {e}")
         else:
-            st.warning("⚠️ Por favor, envie um arquivo válido (Imagem).")
+            st.warning("⚠️ Por favor, envie um arquivo válido (Imagem ou PDF).")
