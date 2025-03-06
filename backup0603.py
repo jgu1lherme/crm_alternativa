@@ -1,25 +1,143 @@
-import pandas as pd
-import streamlit as st
+import os
+import re
+import shutil
+import tempfile
+import zipfile
 from datetime import datetime, timedelta
+from io import BytesIO
+
+import pandas as pd
 import plotly.express as px
+import PyPDF2
+import streamlit as st
 
 # Configuração da página
 st.set_page_config(
     page_title="BI - Alternativa Distribuidora", page_icon="logo2.png", layout="wide"
 )
 
-# Barra lateral para navegação
-menu = st.sidebar.radio(
-    "Selecione uma opção:", ["CRM de Clientes", "Positivação de CNPJ"]
-)
-
-# Função para carregar arquivos por abas
 if "uploaded_file_crm" not in st.session_state:
     st.session_state.uploaded_file_crm = None
+
 if "uploaded_file_cnpj" not in st.session_state:
     st.session_state.uploaded_file_cnpj = None
 
-if menu == "CRM de Clientes":
+# Barra lateral para navegação
+menu = st.sidebar.radio(
+    "Selecione uma opção:",
+    ["CRM de Clientes", "Positivação de CNPJ", "Renomear Notas Fiscais"],
+)
+
+# 🟢 FUNÇÕES DE RENOMEAÇÃO DE NOTAS
+
+
+# Função para extrair PDFs do ZIP enviado
+def extract_pdfs_from_zip(zip_file):
+    extracted_pdfs = []
+    with zipfile.ZipFile(zip_file, "r") as z:
+        for file_name in z.namelist():
+            if file_name.lower().endswith(".pdf"):  # Apenas arquivos .pdf
+                with z.open(file_name) as f:
+                    pdf_bytes = f.read()
+                    extracted_pdfs.append((file_name, pdf_bytes))
+    return extracted_pdfs
+
+
+# Função para extrair informações do PDF e gerar nome novo
+def extract_info_from_pdf(pdf_bytes):
+    try:
+        reader = PyPDF2.PdfReader(BytesIO(pdf_bytes))
+        text = "\n".join(
+            page.extract_text() for page in reader.pages if page.extract_text()
+        )
+
+        emitente_match = re.search(
+            r"IDENTIFICAÇÃO DO EMITENTE\s*([\wÀ-ÿ\-.,& ]+)", text, re.MULTILINE
+        )
+        numero_match = re.search(r"Nº\.:\s*(\d{3}\.\d{3}\.\d{3})", text)
+
+        if emitente_match and numero_match:
+            emitente = emitente_match.group(1).strip()
+            numero_nota = numero_match.group(1).strip()
+            return f"{numero_nota} - {emitente}.pdf"
+    except Exception as e:
+        print(f"Erro ao processar PDF: {e}")
+    return None
+
+
+# 🟢 MENU "RENOMEAR NOTAS FISCAIS"
+if menu == "Renomear Notas Fiscais":
+    st.title("📑 Renomeador de Notas Fiscais")
+
+    # Opção de envio: ZIP ou PDFs individuais
+    tipo_upload = st.radio(
+        "Escolha como enviar os arquivos:", ["ZIP com PDFs", "Arquivos PDF individuais"]
+    )
+
+    pdfs = []
+
+    if tipo_upload == "ZIP com PDFs":
+        uploaded_zip = st.file_uploader("📂 Envie um arquivo ZIP", type=["zip"])
+        if uploaded_zip:
+            with st.spinner("Extraindo arquivos..."):
+                pdfs = extract_pdfs_from_zip(uploaded_zip)
+
+    elif tipo_upload == "Arquivos PDF individuais":
+        uploaded_pdfs = st.file_uploader(
+            "📂 Selecione um ou mais PDFs", type=["pdf"], accept_multiple_files=True
+        )
+        if uploaded_pdfs:
+            pdfs = [(file.name, file.read()) for file in uploaded_pdfs]
+
+    # Processamento dos arquivos enviados
+    if pdfs:
+        with st.spinner("Processando arquivos..."):
+            renamed_data = []  # Lista de PDFs renomeados
+
+            for original_name, pdf_bytes in pdfs:
+                new_name = extract_info_from_pdf(pdf_bytes)
+
+                if new_name:
+                    renamed_data.append((new_name, pdf_bytes))  # Salvar nome e conteúdo
+                else:
+                    st.warning(f"⚠️ Não foi possível renomear: {original_name}")
+
+            # Exibir lista de arquivos renomeados
+            if renamed_data:
+                st.success("✅ PDFs renomeados com sucesso!")
+                st.write("### 📋 Arquivos disponíveis para download:")
+
+                for file_name, pdf_bytes in renamed_data:
+                    col1, col2 = st.columns([4, 1])
+                    col1.write(f"📄 {file_name}")  # Exibir nome do arquivo
+                    col2.download_button(
+                        label="📥 Baixar",
+                        data=pdf_bytes,
+                        file_name=file_name,
+                        mime="application/pdf",
+                    )
+
+                # Criar ZIP para baixar todos os arquivos juntos
+                with st.spinner("Criando arquivo ZIP..."):
+                    zip_buffer = BytesIO()
+                    with zipfile.ZipFile(zip_buffer, "w") as z:
+                        for file_name, pdf_bytes in renamed_data:
+                            z.writestr(file_name, pdf_bytes)
+                    zip_buffer.seek(0)
+
+                st.markdown("### 📂 Baixar todos os arquivos:")
+                st.download_button(
+                    label="📥 Baixar Tudo (ZIP)",
+                    data=zip_buffer,
+                    file_name="Notas_Renomeadas.zip",
+                    mime="application/zip",
+                )
+
+            else:
+                st.error("⚠️ Nenhum arquivo foi renomeado.")
+
+# Outros menus existentes
+elif menu == "CRM de Clientes":
     st.title("📊 CRM de Clientes - Ativos e Inativos")
     uploaded_file = st.file_uploader(
         "📂 Envie a planilha Excel", type=["xlsx", "xls"], key="crm"
@@ -36,7 +154,6 @@ if menu == "CRM de Clientes":
         hoje = datetime.today()
         tres_meses_atras = hoje - timedelta(days=90)
 
-        # Filtro de vendedor na página principal
         vendedores = df["VEND_NOME"].unique().tolist()
         vendedor_selecionado = st.selectbox(
             "Selecione um Vendedor", ["Todos"] + vendedores
@@ -70,7 +187,6 @@ if menu == "CRM de Clientes":
                     "TOTAL_TRIMESTRAL": "R$ {:,.2f}".format,
                 }
             ),
-            # use_container_width=True,
         )
 
         ativos = clientes[clientes["SITUAÇÃO"] == "🟢 Ativo"].shape[0]
@@ -82,7 +198,6 @@ if menu == "CRM de Clientes":
             title="Distribuição de Clientes",
         )
         st.plotly_chart(fig)
-        # use_container_width=True
 
         st.success(f"✅ Clientes Ativos: {ativos}")
         st.error(f"❌ Clientes Inativos: {inativos}")
@@ -134,6 +249,5 @@ elif menu == "Positivação de CNPJ":
                 title="Progresso da Meta",
             )
             st.plotly_chart(fig)
-            # use_container_width=True
     else:
         st.warning("⚠️ Por favor, envie um arquivo Excel para visualizar os dados.")
