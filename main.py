@@ -9,7 +9,6 @@ from io import BytesIO
 
 import fitz  # PyMuPDF
 import pandas as pd
-import pdf2image
 import plotly.express as px
 import PyPDF2
 import streamlit as st
@@ -180,7 +179,7 @@ elif menu == "CRM de Clientes":
             df.groupby("CLI_RAZ")
             .agg(
                 ULTIMA_COMPRA=("NFS_EMISSAO", "max"),
-                TOTAL_TRIMESTRAL=(
+                TOTAL_TRIMESTRAL=( 
                     "NFS_CUSTO",
                     lambda x: x[df["NFS_EMISSAO"] >= tres_meses_atras].sum(),
                 ),
@@ -266,7 +265,7 @@ elif menu == "Positivação de CNPJ":
     else:
         st.warning("⚠️ Por favor, envie um arquivo Excel para visualizar os dados.")
 
-# 🟢 MENU "CONVERSOR DE IMAGENS"
+# 🟢 MENU "CONVERSOR DE ARQUIVOS"
 elif menu == "Conversor de Arquivos":
     st.title("🖼️ Conversor de Arquivos")
 
@@ -280,33 +279,8 @@ elif menu == "Conversor de Arquivos":
         # Identificar o tipo de arquivo
         file_extension = uploaded_file.name.split(".")[-1].lower()
 
-        # 🟢 CONVERSÃO PARA IMAGENS (SE FOR UM PDF)
-        if file_extension == "pdf":
-            st.subheader("Conversão de PDF para Imagens")
-
-            if st.button("Converter PDF para Imagens"):
-                try:
-                    # Converter o PDF para imagens
-                    images = pdf2image.convert_from_bytes(uploaded_file.read())
-
-                    st.success("✅ PDF convertido para imagens com sucesso!")
-
-                    # Disponibilizar cada página do PDF como imagem para download
-                    for i, image in enumerate(images):
-                        image_io = io.BytesIO()
-                        image.save(image_io, "PNG")
-                        image_io.seek(0)
-                        st.download_button(
-                            label=f"📥 Baixar Página {i + 1} (Imagem)",
-                            data=image_io,
-                            file_name=f"pagina_{i + 1}.png",
-                            mime="image/png",
-                        )
-                except Exception as e:
-                    st.error(f"⚠️ Erro ao converter PDF para imagens: {e}")
-
         # 🟢 CONVERSÃO DE IMAGEM PARA VÁRIOS FORMATOS E PDF (SE FOR UMA IMAGEM)
-        elif file_extension in ["png", "jpg", "jpeg"]:
+        if file_extension in ["png", "jpg", "jpeg"]:
             st.subheader("Conversão de Imagem")
 
             # Seleção de formatos de conversão
@@ -342,7 +316,7 @@ elif menu == "Conversor de Arquivos":
                         label=f"📥 Baixar {formato_destino.upper()}",
                         data=img_io,
                         file_name=f"{uploaded_file.name.split('.')[0]}_convertido.{formato_destino.lower()}",
-                        mime=(
+                        mime=( 
                             f"image/{formato_destino.lower()}"
                             if formato_destino != "PDF"
                             else "application/pdf"
