@@ -5,3 +5,7 @@ openpyxl
 PyPDF2
 PyMuPDF
 pdf2image
+python-docx
+docx2pdf
+Pillow
+reportlab
