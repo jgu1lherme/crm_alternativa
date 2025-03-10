@@ -78,7 +78,6 @@ def extract_info_from_pdf(pdf_bytes):
         print(f"Erro ao processar PDF: {e}")
     return None
 
-
 # 🟢 MENU "RENOMEAR NOTAS FISCAIS"
 if menu == "Renomear Notas Fiscais":
     st.title("📑 Renomeador de Notas Fiscais")
@@ -109,9 +108,12 @@ if menu == "Renomear Notas Fiscais":
             renamed_data = []  # Lista de PDFs renomeados
 
             for original_name, pdf_bytes in pdfs:
-                new_name = extract_info_from_pdf(pdf_bytes)
+                extracted_info = extract_info_from_pdf(pdf_bytes)
 
-                if new_name:
+                if extracted_info:
+                    # Inverter a ordem para "Nome - Número"
+                    numero, nome = extracted_info.split(" - ", 1)
+                    new_name = f"{nome} - {numero}.pdf"
                     renamed_data.append((new_name, pdf_bytes))  # Salvar nome e conteúdo
                 else:
                     st.warning(f"⚠️ Não foi possível renomear: {original_name}")
