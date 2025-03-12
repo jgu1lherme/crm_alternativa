@@ -9,3 +9,4 @@ python-docx
 docx2pdf
 Pillow
 reportlab
+xlrd
