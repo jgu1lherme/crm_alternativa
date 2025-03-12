@@ -31,6 +31,9 @@ if "uploaded_file_crm" not in st.session_state:
 if "uploaded_file_cnpj" not in st.session_state:
     st.session_state.uploaded_file_cnpj = None
 
+if "uploaded_file_bancaria" not in st.session_state:
+    st.session_state.uploaded_file_bancaria = None
+
 # Barra lateral para navegação
 menu = st.sidebar.radio(
     "Selecione uma opção:",
@@ -39,12 +42,102 @@ menu = st.sidebar.radio(
         "Positivação de CNPJ",
         "Renomear Notas Fiscais",
         "Conversor de Arquivos",
+        "Organização Planilha Bancária",  # Novo menu
     ],
 )
 
+
+# Função para organizar planilha bancária
+def process_bank_statement(file):
+    # Ler a planilha original
+    if file.name.endswith(".xls"):
+        df = pd.read_excel(file, dtype=str, engine="xlrd")
+    else:
+        df = pd.read_excel(file, dtype=str, engine="openpyxl")
+
+    # Remover espaços extras e converter nomes das colunas
+    df = df.apply(lambda x: x.str.strip() if x.dtype == "object" else x)
+    df.columns = ["Data", "Documento", "Historico", "Valor"]
+
+    # Filtrar linhas vazias ou irrelevantes
+    df = df.dropna(subset=["Historico", "Valor"], how="all")
+    df = df[~df["Historico"].str.contains("SALDO|====>", na=False, case=False)]
+
+    # Criar colunas de Crédito e Débito
+    df["Valor"] = df["Valor"].astype(str)
+    df["Valor Crédito"] = df["Valor"].str.extract(r"([\d,.]+)C$")[0]
+    df["Valor Débito"] = df["Valor"].str.extract(r"([\d,.]+)D$")[0]
+
+    # Remover os caracteres C e D da coluna Valor
+    df["Valor"] = df["Valor"].str.replace("C", "").str.replace("D", "")
+
+    # Converter para número
+    def to_numeric(value):
+        if pd.notna(value):
+            return float(value.replace(".", "").replace(",", "."))
+        return 0.0
+
+    df["Valor Crédito"] = df["Valor Crédito"].apply(to_numeric)
+    df["Valor Débito"] = df["Valor Débito"].apply(to_numeric)
+
+    # Calcular totais
+    total_credito = df["Valor Crédito"].sum()
+    total_debito = df["Valor Débito"].sum()
+    diferenca = total_credito - total_debito
+
+    # Aplicar formato contábil
+    df["Valor Crédito"] = df["Valor Crédito"].map(
+        lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    )
+    df["Valor Débito"] = df["Valor Débito"].map(
+        lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    )
+
+    # Criar um DataFrame com os totais e a diferença
+    total_df = pd.DataFrame(
+        {
+            "Data": [""],
+            "Documento": [""],
+            "Historico": ["TOTAL"],
+            "Valor Crédito": [
+                f"R$ {total_credito:,.2f}".replace(",", "X")
+                .replace(".", ",")
+                .replace("X", ".")
+            ],
+            "Valor Débito": [
+                f"R$ {total_debito:,.2f}".replace(",", "X")
+                .replace(".", ",")
+                .replace("X", ".")
+            ],
+        }
+    )
+
+    diferenca_df = pd.DataFrame(
+        {
+            "Data": [""],
+            "Documento": [""],
+            "Historico": [
+                f"DIFERENÇA (Crédito - Débito): R$ {diferenca:,.2f}".replace(",", "X")
+                .replace(".", ",")
+                .replace("X", ".")
+            ],
+            "Valor Crédito": [""],
+            "Valor Débito": [""],
+        }
+    )
+
+    # Concatenar os totais ao final do DataFrame
+    df = pd.concat([df, total_df, diferenca_df], ignore_index=True)
+
+    # Salvar a planilha processada em um buffer
+    output = io.BytesIO()
+    df.to_excel(output, sheet_name="Dados Processados", index=False)
+    output.seek(0)
+
+    return output, df
+
+
 # 🟢 FUNÇÕES DE RENOMEAÇÃO DE NOTAS
-
-
 # Função para extrair PDFs do ZIP enviado
 def extract_pdfs_from_zip(zip_file):
     extracted_pdfs = []
@@ -77,6 +170,7 @@ def extract_info_from_pdf(pdf_bytes):
     except Exception as e:
         print(f"Erro ao processar PDF: {e}")
     return None
+
 
 # 🟢 MENU "RENOMEAR NOTAS FISCAIS"
 if menu == "Renomear Notas Fiscais":
@@ -361,3 +455,64 @@ elif menu == "Conversor de Arquivos":
                     st.error(f"⚠️ Erro ao converter imagem: {e}")
         else:
             st.warning("⚠️ Por favor, envie um arquivo válido (Imagem ou PDF).")
+
+
+# 🟢 FUNÇÃO "ORGANIZAÇÃO PLANILHA BANCÁRIA"
+elif menu == "Organização Planilha Bancária":
+    st.title("📑 Organização de Planilha Bancária")
+
+    uploaded_file = st.file_uploader(
+        "📂 Selecione uma planilha bancária", type=["xls", "xlsx"], key="bancaria"
+    )
+
+    if uploaded_file:
+        st.session_state.uploaded_file_bancaria = uploaded_file
+
+    # Se o arquivo foi enviado, processa
+    if st.session_state.uploaded_file_bancaria:
+        with st.spinner("Processando a planilha..."):
+            output, df_processed = process_bank_statement(
+                st.session_state.uploaded_file_bancaria
+            )
+
+            st.success("✅ Planilha processada com sucesso!")
+
+            # Exibir a tabela processada
+            st.write("### 📊 Dados Processados")
+            st.dataframe(df_processed)
+
+            # Calcular totais e diferença
+            total_credito = df_processed.loc[
+                df_processed["Historico"] == "TOTAL", "Valor Crédito"
+            ].values[0]
+            total_debito = df_processed.loc[
+                df_processed["Historico"] == "TOTAL", "Valor Débito"
+            ].values[0]
+            diferenca = df_processed.loc[
+                df_processed["Historico"].str.contains("DIFERENÇA", na=False),
+                "Historico",
+            ].values[0]
+
+            # Exibir totais de forma visual
+            st.write("### 📈 Resumo Financeiro")
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric(label="💰 Total Crédito", value=total_credito)
+
+            with col2:
+                st.metric(label="📉 Total Débito", value=total_debito)
+
+            with col3:
+                st.metric(
+                    label="🔍 Diferença (Crédito - Débito)",
+                    value=diferenca.split(":")[-1].strip(),
+                )
+
+            # Disponibilizar o download da planilha processada
+            st.download_button(
+                label="📥 Baixar Planilha Processada",
+                data=output,
+                file_name="Planilha_Bancaria_Processada.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
