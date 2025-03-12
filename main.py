@@ -64,12 +64,11 @@ def process_bank_statement(file):
     df = df[~df["Historico"].str.contains("SALDO|====>", na=False, case=False)]
 
     # Criar colunas de Crédito e Débito
-    df["Valor"] = df["Valor"].astype(str)
     df["Valor Crédito"] = df["Valor"].str.extract(r"([\d,.]+)C$")[0]
     df["Valor Débito"] = df["Valor"].str.extract(r"([\d,.]+)D$")[0]
 
-    # Remover os caracteres C e D da coluna Valor
-    df["Valor"] = df["Valor"].str.replace("C", "").str.replace("D", "")
+    # Remover a coluna original "Valor"
+    df = df.drop(columns=["Valor"])
 
     # Converter para número
     def to_numeric(value):
@@ -135,7 +134,7 @@ def process_bank_statement(file):
     output.seek(0)
 
     return output, df
-
+    
 
 # 🟢 FUNÇÕES DE RENOMEAÇÃO DE NOTAS
 # Função para extrair PDFs do ZIP enviado
