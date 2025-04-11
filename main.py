@@ -42,7 +42,8 @@ menu = st.sidebar.radio(
         "Positivação de CNPJ",
         "Renomear Notas Fiscais",
         "Conversor de Arquivos",
-        "Organização Planilha Bancária",  # Novo menu
+        "Organização Planilha Bancária",
+        "Contabilidade - Extrato ML",
     ],
 )
 
@@ -515,3 +516,83 @@ elif menu == "Organização Planilha Bancária":
                 file_name="Planilha_Bancaria_Processada.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
+
+# 🟢 FUNÇÃO "CONTABILIDADE - EXTRATO ML"
+elif menu == "Contabilidade - Extrato ML":
+    st.title("📘 Contabilidade - Extrato Mercado Livre")
+
+    uploaded_pdf = st.file_uploader("📂 Envie o arquivo PDF do extrato ML", type=["pdf"])
+
+    if uploaded_pdf:
+        try:
+            texto = ""
+            doc = fitz.open(stream=uploaded_pdf.read(), filetype="pdf")
+            for page in doc:
+                texto += page.get_text()
+
+            linhas = texto.splitlines()
+            transacoes = []
+            bloco = ""
+            padrao_data = re.compile(r"\d{2}-\d{2}-\d{4}")
+
+            for linha in linhas:
+                if padrao_data.match(linha.strip()):
+                    if bloco:
+                        transacoes.append(bloco.strip())
+                    bloco = linha.strip()
+                else:
+                    bloco += " " + linha.strip()
+
+            if bloco:
+                transacoes.append(bloco.strip())
+
+            dados_extraidos = []
+
+            for transacao in transacoes:
+                try:
+                    data = re.search(r"\d{2}-\d{2}-\d{4}", transacao).group()
+                    valor_raw = re.search(r"R\$ -?\d{1,3}(?:\.\d{3})*,\d{2}", transacao)
+                    valor = valor_raw.group().replace("R$ ", "").replace(".", "").replace(",", ".") if valor_raw else ""
+
+                    saldo_raw = re.findall(r"R\$ -?\d{1,3}(?:\.\d{3})*,\d{2}", transacao)
+                    saldo = saldo_raw[-1].replace("R$ ", "").replace(".", "").replace(",", ".") if len(saldo_raw) > 1 else ""
+
+                    id_match = re.findall(r"\b\d{9,}\b", transacao)
+                    id_operacao = id_match[-1] if id_match else ""
+
+                    descricao = re.sub(r"\d{2}-\d{2}-\d{4}", "", transacao)
+                    descricao = re.sub(r"R\$ -?\d{1,3}(?:\.\d{3})*,\d{2}", "", descricao)
+                    descricao = re.sub(r"\b\d{9,}\b", "", descricao)
+                    descricao = descricao.strip()
+
+                    dados_extraidos.append({
+                        "Data": datetime.strptime(data, "%d-%m-%Y").date(),
+                        "Descrição": descricao,
+                        "ID da Operação": id_operacao,
+                        "Valor": float(valor) if valor else "",
+                        "Saldo": float(saldo) if saldo else "",
+                    })
+                except Exception as e:
+                    st.warning(f"⚠️ Erro ao processar uma transação: {e}")
+
+            df = pd.DataFrame(dados_extraidos)
+
+            if not df.empty:
+                st.success("✅ Transações extraídas com sucesso!")
+                st.dataframe(df)
+
+                # Download do Excel
+                output = io.BytesIO()
+                df.to_excel(output, index=False)
+                output.seek(0)
+
+                st.download_button(
+                    label="📥 Baixar Excel",
+                    data=output,
+                    file_name="extrato_mercado_livre.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+            else:
+                st.info("Nenhuma transação encontrada no PDF.")
+        except Exception as e:
+            st.error(f"❌ Erro ao processar o arquivo PDF: {e}")
